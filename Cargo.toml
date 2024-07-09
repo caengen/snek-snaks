@@ -1,0 +1,29 @@
+[package]
+name = "bevy-basic-2d-starter"
+version = "0.1.0"
+edition = "2021"
+
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+opt-level = "z"
+codegen-units = 1
+
+[dependencies]
+bevy = { version = "0.14", features = ["dynamic_linking", "file_watcher"] }
+getrandom = { version = "0.2.15", features = ["js"] }
+bevy-inspector-egui = "0.25.0"
+bevy_common_assets = { version = "0.11.0", features = ["json"] }
+bevy_turborand = "0.9.0"
+bevy_egui = "0.28.0"
+bevy_ecs_tilemap = "0.12.0"
+bevy_asset_loader = { version = "0.21.0", features = ["2d"] }
+derive_more = "0.99.18"
+serde = "1.0.204"
+redox_syscall = "0.5.2"
