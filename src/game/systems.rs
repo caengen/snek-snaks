@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::a11y::accesskit::Size;
 use bevy::prelude::*;
 use bevy_turborand::DelegatedRng;
@@ -13,9 +15,12 @@ use super::components::{
 };
 use super::effects::Flick;
 
-const TILE_SIZE: f32 = 16.;
-const WORLD_SIZE_X: u32 = 80;
-const WORLD_SIZE_Y: u32 = 45;
+const TILE_SIZE: f32 = 32.;
+const WORLD_SIZE_X: u32 = 40;
+const WORLD_SIZE_Y: u32 = 22;
+// const TILE_SIZE: f32 = 16.;
+// const WORLD_SIZE_X: u32 = 80;
+// const WORLD_SIZE_Y: u32 = 45;
 
 pub fn pause_controls(
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -104,11 +109,12 @@ pub fn spawn_apple_handler(
             },
             SpriteBundle {
                 texture: apple_texture.clone(),
-                transform: Transform::from_translation(Vec3::new(*x.unwrap(), *y.unwrap(), 0.)),
+                transform: Transform::from_translation(Vec3::new(*x.unwrap(), *y.unwrap(), 2.))
+                    .with_scale(Vec3::splat(2.)),
                 ..Default::default()
             },
             Apple,
-            Bounding(TILE_SIZE / 2.),
+            Bounding(8.),
         ));
     }
 }
@@ -136,7 +142,7 @@ pub fn setup_player(
         },
         SpriteBundle {
             texture: char_texture.clone(),
-            transform: Transform::IDENTITY,
+            transform: Transform::IDENTITY.with_scale(Vec3::splat(2.)),
             ..Default::default()
         },
         AnimationTarget,
@@ -150,7 +156,7 @@ pub fn setup_player(
 
     // spawn body
     let mut last = Entity::PLACEHOLDER;
-    for _ in 0..8 {
+    for _ in 0..2 {
         last = spawn_body_part(&mut commands, &char_atlas_layout, &char_texture, &head_pos);
         head_pos.translation.x -= TILE_SIZE;
     }
@@ -199,7 +205,7 @@ fn spawn_body_part(
             },
             SpriteBundle {
                 texture: texture.clone(),
-                transform: pos.clone(),
+                transform: pos.clone().with_scale(Vec3::splat(2.)),
                 ..Default::default()
             },
             AnimationTarget,
@@ -262,16 +268,18 @@ pub fn check_apple_collision(
     apple_query: Query<(Entity, &Transform, &Bounding), With<Apple>>,
     mut spawn_apple: EventWriter<SpawnAppleEvent>,
     mut grow_snake: EventWriter<GrowSnakeEvent>,
+    mut fixed_time: ResMut<Time<Fixed>>,
 ) {
     let (head_transform, _, head_size) = head_query.single_mut();
-    let head_pos = head_transform.translation;
-
     for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
-        let apple_pos = apple_transform.translation;
-        if head_pos.distance(apple_pos) < head_size.0 + apple_size.0 {
+        if circles_touching(apple_transform, apple_size, head_transform, head_size) {
+            // EATEN
             commands.entity(apple_entity).despawn();
             spawn_apple.send(SpawnAppleEvent);
             grow_snake.send(GrowSnakeEvent);
+
+            let new_timestep = fixed_time.timestep().mul_f32(0.95);
+            fixed_time.set_timestep(new_timestep);
         }
     }
 }

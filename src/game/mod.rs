@@ -46,6 +46,6 @@ impl Plugin for GamePlugin {
                 PhysicsSet::Movement.before(PhysicsSet::CollisionDetection),
             )
             .insert_resource(Paused(false))
-            .insert_resource(Time::<Fixed>::from_hz(10.0));
+            .insert_resource(Time::<Fixed>::from_hz(5.0));
     }
 }
