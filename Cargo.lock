@@ -475,6 +475,7 @@ dependencies = [
  "bevy_ecs_tilemap",
  "bevy_egui",
  "bevy_turborand",
+ "bevy_tween",
  "derive_more",
  "getrandom",
  "redox_syscall 0.5.2",
@@ -1027,6 +1028,30 @@ checksum = "f0452d8254c8bfae4bff6caca2a8be3b0c1b2e1a72b93e9b9f6a21c8dff807e0"
 dependencies = [
  "bevy_macro_utils 0.14.0",
  "encase_derive_impl 0.8.0",
+]
+
+[[package]]
+name = "bevy_eventlistener"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1201363657cbfed741b6402067fb2ad116b9616ecce053931dd7465d091b201f"
+dependencies = [
+ "bevy_app 0.14.0",
+ "bevy_ecs 0.14.0",
+ "bevy_eventlistener_derive",
+ "bevy_hierarchy 0.14.0",
+ "bevy_utils 0.14.0",
+]
+
+[[package]]
+name = "bevy_eventlistener_derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "101faac3c5143e6758b1c5e1342b67525bb669d0e688bc5852f02519a572fdfe"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.70",
 ]
 
 [[package]]
@@ -1774,6 +1799,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_time_runner"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ace283eca64f6060ca7ea13018c9224cfb7ca74fb7e4dfab62d5881defd635a1"
+dependencies = [
+ "bevy_app 0.14.0",
+ "bevy_ecs 0.14.0",
+ "bevy_eventlistener",
+ "bevy_hierarchy 0.14.0",
+ "bevy_reflect 0.14.0",
+ "bevy_time 0.14.0",
+ "rustc_version",
+]
+
+[[package]]
 name = "bevy_transform"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,6 +1851,18 @@ dependencies = [
  "instant",
  "serde",
  "turborand",
+]
+
+[[package]]
+name = "bevy_tween"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae63d27311285165d9db50f593d4beeadeee33e282cb3b94636eeec1366601e"
+dependencies = [
+ "bevy 0.14.0",
+ "bevy_eventlistener",
+ "bevy_time_runner",
+ "rustc_version",
 ]
 
 [[package]]

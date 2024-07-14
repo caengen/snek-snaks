@@ -34,6 +34,7 @@ pub struct AnimationIndices {
 #[derive(Component, Deref, DerefMut)]
 pub struct AnimationTimer(pub Timer);
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
     Left,
     Right,
@@ -42,3 +43,22 @@ pub enum Direction {
 }
 #[derive(Component)]
 pub struct Player;
+
+#[derive(Component)]
+pub struct SnakeHead {
+    pub direction: Direction,
+}
+
+#[derive(Component)]
+pub struct SnakeBodyPart;
+
+#[derive(Resource)]
+pub struct SnakeMoveTimer(pub Timer);
+#[derive(Resource)]
+pub struct SnakeMoveDelta(pub f32);
+
+#[derive(Event)]
+pub struct SpawnAppleEvent;
+
+#[derive(Component)]
+pub struct Apple;

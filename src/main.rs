@@ -16,16 +16,19 @@ use bevy_egui::{
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_turborand::prelude::RngPlugin;
+use bevy_tween::DefaultTweenPlugins;
 use config::Debug;
 use game::{prelude::MainCamera, GamePlugin};
+use interpolator::custom_interpolators_plugin;
 use main_menu::*;
 use std::{env, process, time::Duration};
 
 mod config;
 mod game;
+mod interpolator;
 mod main_menu;
 
-pub const SCREEN: Vec2 = Vec2::from_array([495.0, 270.0]);
+pub const SCREEN: Vec2 = Vec2::from_array([1280.0, 720.0]);
 pub const DARK: Color = Color::rgb(0.191, 0.184, 0.156);
 pub const LIGHT: Color = Color::rgb(0.852, 0.844, 0.816);
 
@@ -87,11 +90,11 @@ fn main() {
     });
 
     let mut app = App::new();
-    app.add_plugins(
+    app.add_plugins((
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "TITLE OF YOUR GAME".into(),
+                    title: "SNAKE".into(),
                     resolution: (SCREEN.x, SCREEN.y).into(),
                     present_mode: PresentMode::AutoNoVsync,
                     // Tells wasm not to override default event handling, like F5, Ctrl+R etc.
@@ -107,7 +110,9 @@ fn main() {
                 ..default()
             })
             .set(ImagePlugin::default_nearest()),
-    )
+        DefaultTweenPlugins,
+        custom_interpolators_plugin,
+    ))
     .init_state::<GameState>()
     .add_computed_state::<InGame>()
     .add_sub_state::<GamePhase>()
@@ -115,7 +120,7 @@ fn main() {
     // Example: Easy loading of assets
     .add_loading_state(
         LoadingState::new(GameState::AssetLoading)
-            .continue_to_state(GameState::MainMenu)
+            .continue_to_state(GameState::InGame)
             .load_collection::<ImageAssets>(),
     )
     .insert_resource(Debug(cfg.debug))
