@@ -5,8 +5,8 @@ use self::{
 };
 use crate::{GamePhase, GameState};
 use bevy::prelude::*;
-use components::{SnakeMoveDelta, SnakeMoveTimer, SpawnAppleEvent};
-use systems::{move_snakes, spawn_apple_handler};
+use components::{GrowSnakeEvent, SpawnAppleEvent};
+use systems::{check_collision, grow_snake, move_snakes, spawn_apple_handler};
 
 mod collision;
 mod components;
@@ -18,6 +18,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnAppleEvent>()
+            .add_event::<GrowSnakeEvent>()
             .add_systems(
                 OnEnter(GameState::InGame),
                 (setup_player, spawn_apple_handler),
@@ -25,7 +26,7 @@ impl Plugin for GamePlugin {
             .add_systems(Update, pause_controls.run_if(in_state(GameState::InGame)))
             .add_systems(
                 FixedUpdate,
-                (move_snakes).run_if(in_state(GamePhase::Playing)),
+                (move_snakes, check_collision, grow_snake).run_if(in_state(GamePhase::Playing)),
             )
             .add_systems(
                 Update,
@@ -36,12 +37,7 @@ impl Plugin for GamePlugin {
                 Update,
                 PhysicsSet::Movement.before(PhysicsSet::CollisionDetection),
             )
-            .insert_resource(SnakeMoveTimer(Timer::from_seconds(
-                1.0,
-                TimerMode::Repeating,
-            )))
-            .insert_resource(SnakeMoveDelta(32.0))
             .insert_resource(Paused(false))
-            .insert_resource(Time::<Fixed>::from_hz(5.0));
+            .insert_resource(Time::<Fixed>::from_hz(10.0));
     }
 }

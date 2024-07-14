@@ -6,8 +6,8 @@ use bevy_tween::tween::{AnimationTarget, IntoTarget};
 use crate::{GamePhase, SCREEN};
 
 use super::components::{
-    Apple, Direction, ExampleGameText, PausedText, Player, Pos, SnakeBodyPart, SnakeHead,
-    SpawnAppleEvent, Vel,
+    Apple, Direction, ExampleGameText, GrowSnakeEvent, PausedText, Player, Pos, SnakeBodyPart,
+    SnakeHead, SpawnAppleEvent, Tail, Vel,
 };
 
 const TILE_SIZE: f32 = 16.;
@@ -139,26 +139,12 @@ pub fn setup_player(
     head_pos.translation.x -= TILE_SIZE;
 
     // spawn body
+    let mut last = Entity::PLACEHOLDER;
     for _ in 0..2 {
-        commands
-            .spawn((
-                TextureAtlas {
-                    layout: char_atlas_layout.clone(),
-                    index: 1,
-                    ..Default::default()
-                },
-                SpriteBundle {
-                    texture: char_texture.clone(),
-                    transform: head_pos,
-                    ..Default::default()
-                },
-                AnimationTarget,
-                SnakeBodyPart,
-            ))
-            .id();
+        last = spawn_body_part(&mut commands, &char_atlas_layout, &char_texture, &head_pos);
         head_pos.translation.x -= TILE_SIZE;
     }
-
+    commands.entity(last).insert(Tail);
     spawn_apple.send(SpawnAppleEvent);
     // .animation()
     // .repeat(Repeat::Infinitely)
@@ -167,6 +153,49 @@ pub fn setup_player(
     //     EaseFunction::Linear,
     //     head_sprite.with(atlas_index(0, 2)),
     // );
+}
+
+pub fn grow_snake(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+    mut grow_snake: EventReader<GrowSnakeEvent>,
+    tail: Query<(Entity, &Transform), With<Tail>>,
+) {
+    for _ in grow_snake.read() {
+        let char_texture = asset_server.load("textures/chars/char_atlas.png");
+        let char_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 3, 1, None, None);
+        let char_atlas_layout = texture_atlases.add(char_layout);
+
+        let (old_tail, transform) = tail.single();
+        let new_tail = spawn_body_part(&mut commands, &char_atlas_layout, &char_texture, transform);
+        commands.entity(old_tail).remove::<Tail>();
+        commands.entity(new_tail).insert(Tail);
+    }
+}
+
+fn spawn_body_part(
+    commands: &mut Commands,
+    layout: &Handle<TextureAtlasLayout>,
+    texture: &Handle<Image>,
+    pos: &Transform,
+) -> Entity {
+    commands
+        .spawn((
+            TextureAtlas {
+                layout: layout.clone(),
+                index: 1,
+                ..Default::default()
+            },
+            SpriteBundle {
+                texture: texture.clone(),
+                transform: pos.clone(),
+                ..Default::default()
+            },
+            AnimationTarget,
+            SnakeBodyPart,
+        ))
+        .id()
 }
 
 pub fn move_snakes(
@@ -190,6 +219,26 @@ pub fn move_snakes(
             let old = part_transform.translation;
             part_transform.translation = prev_pos;
             prev_pos = old;
+        }
+    }
+}
+
+pub fn check_collision(
+    mut commands: Commands,
+    mut head_query: Query<(&Transform, &SnakeHead), Without<SnakeBodyPart>>,
+    apple_query: Query<(Entity, &Transform), With<Apple>>,
+    mut spawn_apple: EventWriter<SpawnAppleEvent>,
+    mut grow_snake: EventWriter<GrowSnakeEvent>,
+) {
+    let (head_transform, head) = head_query.single_mut();
+    let head_pos = head_transform.translation;
+
+    for (apple_entity, apple_transform) in apple_query.iter() {
+        let apple_pos = apple_transform.translation;
+        if head_pos.distance(apple_pos) < TILE_SIZE {
+            commands.entity(apple_entity).despawn();
+            spawn_apple.send(SpawnAppleEvent);
+            grow_snake.send(GrowSnakeEvent);
         }
     }
 }

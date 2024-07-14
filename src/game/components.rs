@@ -52,13 +52,14 @@ pub struct SnakeHead {
 #[derive(Component)]
 pub struct SnakeBodyPart;
 
-#[derive(Resource)]
-pub struct SnakeMoveTimer(pub Timer);
-#[derive(Resource)]
-pub struct SnakeMoveDelta(pub f32);
-
 #[derive(Event)]
 pub struct SpawnAppleEvent;
 
+#[derive(Event)]
+pub struct GrowSnakeEvent;
+
 #[derive(Component)]
 pub struct Apple;
+
+#[derive(Component)]
+pub struct Tail;
