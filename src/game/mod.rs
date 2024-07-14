@@ -6,7 +6,9 @@ use self::{
 use crate::{GamePhase, GameState};
 use bevy::prelude::*;
 use components::{GrowSnakeEvent, SpawnAppleEvent};
-use systems::{check_collision, grow_snake, move_snakes, spawn_apple_handler};
+use systems::{
+    check_apple_collision, check_death_collision, grow_snake, move_snakes, spawn_apple_handler,
+};
 
 mod collision;
 mod components;
@@ -26,7 +28,13 @@ impl Plugin for GamePlugin {
             .add_systems(Update, pause_controls.run_if(in_state(GameState::InGame)))
             .add_systems(
                 FixedUpdate,
-                (move_snakes, check_collision, grow_snake).run_if(in_state(GamePhase::Playing)),
+                (
+                    check_death_collision,
+                    move_snakes,
+                    check_apple_collision,
+                    grow_snake,
+                )
+                    .run_if(in_state(GamePhase::Playing)),
             )
             .add_systems(
                 Update,

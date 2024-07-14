@@ -34,7 +34,7 @@ pub struct AnimationIndices {
 #[derive(Component, Deref, DerefMut)]
 pub struct AnimationTimer(pub Timer);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -63,3 +63,6 @@ pub struct Apple;
 
 #[derive(Component)]
 pub struct Tail;
+
+#[derive(Component, Clone, PartialEq)]
+pub struct Collidible;

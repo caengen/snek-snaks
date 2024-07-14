@@ -1,3 +1,4 @@
+use bevy::a11y::accesskit::Size;
 use bevy::prelude::*;
 use bevy_turborand::DelegatedRng;
 use bevy_turborand::{GlobalRng, RngComponent};
@@ -5,10 +6,12 @@ use bevy_tween::tween::{AnimationTarget, IntoTarget};
 
 use crate::{GamePhase, SCREEN};
 
+use super::collision::circles_touching;
 use super::components::{
-    Apple, Direction, ExampleGameText, GrowSnakeEvent, PausedText, Player, Pos, SnakeBodyPart,
-    SnakeHead, SpawnAppleEvent, Tail, Vel,
+    Apple, Bounding, Collidible, Direction, ExampleGameText, GrowSnakeEvent, PausedText, Player,
+    Pos, SnakeBodyPart, SnakeHead, SpawnAppleEvent, Tail, Vel,
 };
+use super::effects::Flick;
 
 const TILE_SIZE: f32 = 16.;
 const WORLD_SIZE_X: u32 = 80;
@@ -83,10 +86,15 @@ pub fn spawn_apple_handler(
         let apple_atlas_layout = texture_atlases.add(apple_layout);
 
         let mut rng = GlobalRng::new();
-        let x_tiles = SCREEN.x / TILE_SIZE.floor();
-        let y_tiles = SCREEN.y / TILE_SIZE.floor();
+        let x_tiles = WORLD_SIZE_X as f32 / 2.;
+        let y_tiles = WORLD_SIZE_Y as f32 / 2.;
         let x = rng.f32() * x_tiles * TILE_SIZE - TILE_SIZE / 2.;
+        let x_values = [x, -x];
+        let x = rng.sample(&x_values);
+
         let y = rng.f32() * y_tiles * TILE_SIZE - TILE_SIZE / 2.;
+        let y_values = [y, -y];
+        let y = rng.sample(&y_values);
 
         commands.spawn((
             TextureAtlas {
@@ -96,10 +104,11 @@ pub fn spawn_apple_handler(
             },
             SpriteBundle {
                 texture: apple_texture.clone(),
-                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
+                transform: Transform::from_translation(Vec3::new(*x.unwrap(), *y.unwrap(), 0.)),
                 ..Default::default()
             },
             Apple,
+            Bounding(TILE_SIZE / 2.),
         ));
     }
 }
@@ -135,12 +144,13 @@ pub fn setup_player(
         SnakeHead {
             direction: Direction::Right,
         },
+        Bounding(TILE_SIZE / 2.),
     ));
     head_pos.translation.x -= TILE_SIZE;
 
     // spawn body
     let mut last = Entity::PLACEHOLDER;
-    for _ in 0..2 {
+    for _ in 0..8 {
         last = spawn_body_part(&mut commands, &char_atlas_layout, &char_texture, &head_pos);
         head_pos.translation.x -= TILE_SIZE;
     }
@@ -194,6 +204,8 @@ fn spawn_body_part(
             },
             AnimationTarget,
             SnakeBodyPart,
+            Collidible,
+            Bounding(TILE_SIZE / 2.),
         ))
         .id()
 }
@@ -223,19 +235,40 @@ pub fn move_snakes(
     }
 }
 
-pub fn check_collision(
+pub fn check_death_collision(
     mut commands: Commands,
-    mut head_query: Query<(&Transform, &SnakeHead), Without<SnakeBodyPart>>,
-    apple_query: Query<(Entity, &Transform), With<Apple>>,
+    mut head_query: Query<(&Transform, &SnakeHead, &Bounding)>,
+    mut collidibles: Query<(&Transform, &Bounding), With<Collidible>>,
+    mut next_state: ResMut<NextState<GamePhase>>,
+) {
+    let (head_transform, _, head_size) = head_query.single_mut();
+    let head_pos = head_transform.translation;
+
+    for (collidable_transform, collidable_size) in collidibles.iter() {
+        if circles_touching(
+            head_transform,
+            head_size,
+            collidable_transform,
+            collidable_size,
+        ) {
+            next_state.set(GamePhase::Paused);
+        }
+    }
+}
+
+pub fn check_apple_collision(
+    mut commands: Commands,
+    mut head_query: Query<(&Transform, &SnakeHead, &Bounding), Without<SnakeBodyPart>>,
+    apple_query: Query<(Entity, &Transform, &Bounding), With<Apple>>,
     mut spawn_apple: EventWriter<SpawnAppleEvent>,
     mut grow_snake: EventWriter<GrowSnakeEvent>,
 ) {
-    let (head_transform, head) = head_query.single_mut();
+    let (head_transform, _, head_size) = head_query.single_mut();
     let head_pos = head_transform.translation;
 
-    for (apple_entity, apple_transform) in apple_query.iter() {
+    for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
         let apple_pos = apple_transform.translation;
-        if head_pos.distance(apple_pos) < TILE_SIZE {
+        if head_pos.distance(apple_pos) < head_size.0 + apple_size.0 {
             commands.entity(apple_entity).despawn();
             spawn_apple.send(SpawnAppleEvent);
             grow_snake.send(GrowSnakeEvent);
