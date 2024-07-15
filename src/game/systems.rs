@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use bevy::a11y::accesskit::Size;
+use bevy::ecs::entity;
 use bevy::prelude::*;
+use bevy::transform::commands;
 use bevy_turborand::DelegatedRng;
 use bevy_turborand::{GlobalRng, RngComponent};
 use bevy_tween::tween::{AnimationTarget, IntoTarget};
@@ -52,9 +54,18 @@ pub fn pause_controls(
     }
 }
 
+fn valid_direction(prev: &Direction, new: &Direction) -> bool {
+    match prev {
+        Direction::Left => *new != Direction::Right,
+        Direction::Right => *new != Direction::Left,
+        Direction::Up => *new != Direction::Down,
+        Direction::Down => *new != Direction::Up,
+    }
+}
+
 pub fn game_keys(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut snakes: Query<&mut SnakeHead, With<Player>>,
+    mut snakes: Query<(&mut Transform, &mut SnakeHead), With<Player>>,
 ) {
     let mut direction = None;
 
@@ -72,8 +83,11 @@ pub fn game_keys(
     }
 
     if let Some(direction) = direction {
-        for snakes in snakes.iter_mut() {
-            let mut head = snakes;
+        for (mut transform, mut head) in snakes.iter_mut() {
+            if !valid_direction(&head.direction, &direction) {
+                continue;
+            }
+
             head.direction = direction.clone();
         }
     }
@@ -87,7 +101,7 @@ pub fn spawn_apple_handler(
 ) {
     for _ in ev_spawn_apple.read() {
         let apple_texture = asset_server.load("textures/chars/char_atlas.png");
-        let apple_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 3, 2, None, None);
+        let apple_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 4, 2, None, None);
         let apple_atlas_layout = texture_atlases.add(apple_layout);
 
         let mut rng = GlobalRng::new();
@@ -104,7 +118,7 @@ pub fn spawn_apple_handler(
         commands.spawn((
             TextureAtlas {
                 layout: apple_atlas_layout.clone(),
-                index: 3,
+                index: 7,
                 ..Default::default()
             },
             SpriteBundle {
@@ -126,8 +140,15 @@ pub fn setup_player(
     mut spawn_apple: EventWriter<SpawnAppleEvent>,
 ) {
     let char_texture = asset_server.load("textures/chars/char_atlas.png");
-    let char_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 3, 1, None, None);
-    let char_atlas_layout = texture_atlases.add(char_layout);
+    let body_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 6, 1, None, None);
+    let body_atlas_layout = texture_atlases.add(body_layout);
+
+    let tail_layout = TextureAtlasLayout::from_grid(UVec2::new(32, 16), 3, 3, None, None);
+    let tail_atlas_layout = texture_atlases.add(tail_layout);
+
+    // let head_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 4, 1, None, None);
+    // let head_atlas_layout = texture_atlases.add(head_layout);
+
     let head_sprite = AnimationTarget.into_target();
 
     let mut head_pos = Transform::IDENTITY;
@@ -136,8 +157,8 @@ pub fn setup_player(
     // spawn head
     commands.spawn((
         TextureAtlas {
-            layout: char_atlas_layout.clone(),
-            index: 0,
+            layout: body_atlas_layout.clone(),
+            index: 5,
             ..Default::default()
         },
         SpriteBundle {
@@ -155,12 +176,26 @@ pub fn setup_player(
     head_pos.translation.x -= TILE_SIZE;
 
     // spawn body
-    let mut last = Entity::PLACEHOLDER;
     for _ in 0..2 {
-        last = spawn_body_part(&mut commands, &char_atlas_layout, &char_texture, &head_pos);
+        spawn_body_part(
+            &mut commands,
+            &body_atlas_layout,
+            4,
+            &char_texture,
+            &head_pos,
+        );
         head_pos.translation.x -= TILE_SIZE;
     }
-    commands.entity(last).insert(Tail);
+    let tail = spawn_body_part(
+        &mut commands,
+        &body_atlas_layout,
+        // 3 need to make more textures,
+        4,
+        &char_texture,
+        &head_pos,
+    );
+
+    commands.entity(tail).insert(Tail);
     spawn_apple.send(SpawnAppleEvent);
     // .animation()
     // .repeat(Repeat::Infinitely)
@@ -176,16 +211,31 @@ pub fn grow_snake(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut grow_snake: EventReader<GrowSnakeEvent>,
-    tail: Query<(Entity, &Transform), With<Tail>>,
+    mut tail: Query<(Entity, &Transform, &mut TextureAtlas), With<Tail>>,
 ) {
     for _ in grow_snake.read() {
-        let char_texture = asset_server.load("textures/chars/char_atlas.png");
-        let char_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 3, 1, None, None);
-        let char_atlas_layout = texture_atlases.add(char_layout);
+        let full_texture = asset_server.load("textures/chars/char_atlas.png");
+        let body_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 5, 1, None, None);
+        let body_atlas_layout = texture_atlases.add(body_layout);
 
-        let (old_tail, transform) = tail.single();
-        let new_tail = spawn_body_part(&mut commands, &char_atlas_layout, &char_texture, transform);
+        let tail_layout = TextureAtlasLayout::from_grid(UVec2::new(32, 16), 3, 3, None, None);
+        let tail_atlas_layout = texture_atlases.add(tail_layout);
+
+        let (old_tail, transform, mut old_atlas) = tail.single_mut();
+        let new_tail = spawn_body_part(
+            &mut commands,
+            &body_atlas_layout,
+            // 3, TODO need to make more textures
+            4,
+            &full_texture,
+            transform,
+        );
         commands.entity(old_tail).remove::<Tail>();
+
+        // set old tail to body part
+        old_atlas.layout = body_atlas_layout.clone();
+        old_atlas.index = 4;
+
         commands.entity(new_tail).insert(Tail);
     }
 }
@@ -193,6 +243,7 @@ pub fn grow_snake(
 fn spawn_body_part(
     commands: &mut Commands,
     layout: &Handle<TextureAtlasLayout>,
+    index: usize,
     texture: &Handle<Image>,
     pos: &Transform,
 ) -> Entity {
@@ -200,7 +251,7 @@ fn spawn_body_part(
         .spawn((
             TextureAtlas {
                 layout: layout.clone(),
-                index: 1,
+                index,
                 ..Default::default()
             },
             SpriteBundle {
@@ -233,10 +284,31 @@ pub fn move_snakes(
         transform.translation += move_delta;
 
         // move body
-        for mut part_transform in snake_body_parts.iter_mut() {
+        let len = snake_body_parts.iter().len();
+        for (i, mut part_transform) in snake_body_parts.iter_mut().enumerate() {
             let old = part_transform.translation;
             part_transform.translation = prev_pos;
+            if i + 1 == len {
+                // if prev above
+                if prev_pos.y > old.y {
+                    part_transform.rotation = Quat::from_rotation_z(90.0f32.to_radians());
+                } else if prev_pos.y < old.y {
+                    part_transform.rotation = Quat::from_rotation_z(-90.0f32.to_radians());
+                } else if prev_pos.x > old.x {
+                    part_transform.rotation = Quat::from_rotation_z(0.0f32.to_radians());
+                } else if prev_pos.x < old.x {
+                    part_transform.rotation = Quat::from_rotation_z(180.0f32.to_radians());
+                }
+            }
             prev_pos = old;
+        }
+
+        // rotate head
+        match head.direction {
+            Direction::Left => transform.rotation = Quat::from_rotation_z(-180.0f32.to_radians()),
+            Direction::Right => transform.rotation = Quat::from_rotation_z(0.0f32.to_radians()),
+            Direction::Up => transform.rotation = Quat::from_rotation_z(90.0f32.to_radians()),
+            Direction::Down => transform.rotation = Quat::from_rotation_z(-90.0f32.to_radians()),
         }
     }
 }
@@ -259,6 +331,14 @@ pub fn check_death_collision(
         ) {
             next_state.set(GamePhase::Paused);
         }
+    }
+
+    if head_pos.x < -(WORLD_SIZE_X as f32 / 2. as f32 * TILE_SIZE)
+        || head_pos.x > WORLD_SIZE_X as f32 / 2. as f32 * TILE_SIZE
+        || head_pos.y < -(WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE)
+        || head_pos.y > WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE
+    {
+        next_state.set(GamePhase::Paused);
     }
 }
 

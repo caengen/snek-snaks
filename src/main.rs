@@ -29,7 +29,7 @@ mod interpolator;
 mod main_menu;
 
 pub const SCREEN: Vec2 = Vec2::from_array([1280.0, 720.0]);
-pub const DARK: Color = Color::rgb(0.191, 0.184, 0.156);
+pub const DARK: Color = Color::rgb(0.059, 0.219, 0.059);
 pub const LIGHT: Color = Color::rgb(0.852, 0.844, 0.816);
 
 // Example: Easy loading of assets

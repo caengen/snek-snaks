@@ -31,14 +31,14 @@ impl Plugin for GamePlugin {
                 (
                     check_death_collision,
                     move_snakes,
-                    check_apple_collision,
                     grow_snake,
+                    check_apple_collision,
                 )
                     .run_if(in_state(GamePhase::Playing)),
             )
             .add_systems(
                 Update,
-                (game_keys, example_update, flick_system, spawn_apple_handler)
+                (example_update, game_keys, flick_system, spawn_apple_handler)
                     .run_if(in_state(GamePhase::Playing)),
             )
             .configure_sets(
