@@ -141,20 +141,24 @@ pub fn update_score_text(score: Res<Score>, mut query: Query<&mut Text, With<Sco
     }
 }
 
-pub fn init_game(mut commands: Commands, mut score: ResMut<Score>) {
+pub fn init_game(mut commands: Commands, mut score: ResMut<Score>, asset_server: Res<AssetServer>) {
     score.value = 0;
 
+    // Score Text
     commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                display: Display::Flex,
-                flex_direction: FlexDirection::Column,
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.),
+                    height: Val::Percent(100.),
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
                 ..default()
             },
-            ..default()
-        })
+            StateScoped(GameState::InGame),
+        ))
         .with_children(|builder| {
             builder
                 .spawn(NodeBundle {
@@ -184,6 +188,7 @@ pub fn init_game(mut commands: Commands, mut score: ResMut<Score>) {
                                 TextStyle {
                                     font_size: 50.,
                                     color: Color::WHITE,
+                                    font: asset_server.load("fonts/visitor.ttf"),
                                     ..default()
                                 },
                             ),
@@ -393,7 +398,7 @@ pub fn check_death_collision(
             collidable_transform,
             collidable_size,
         ) {
-            next_state.set(GamePhase::Paused);
+            next_state.set(GamePhase::Dead);
         }
     }
 
@@ -402,7 +407,7 @@ pub fn check_death_collision(
         || head_pos.y < -(WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE)
         || head_pos.y > WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE
     {
-        next_state.set(GamePhase::Paused);
+        next_state.set(GamePhase::Dead);
     }
 }
 
@@ -459,4 +464,66 @@ pub fn example_update(
         style.top = Val::Px(pos.0.y);
         style.left = Val::Px(pos.0.x);
     }
+}
+
+pub fn dead_controls(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        next_state.set(GameState::EnterGame);
+    }
+}
+
+pub fn dead_text(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Score>) {
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.),
+                    height: Val::Percent(100.),
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                ..default()
+            },
+            StateScoped(GameState::InGame),
+        ))
+        .with_children(|builder| {
+            builder
+                .spawn(NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(40.),
+                        display: Display::Flex,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    ..default()
+                })
+                // .insert(
+                //     NineSliceUiTexture::from_slice(
+                //         server.load("panel_atlas.png"),
+                //         Rect::new(0., 0., 32., 32.),
+                //     )
+                //     .with_blend_color(Color::from(LinearRgba::RED))
+                //     .with_blend_mix(0.5),
+                // )
+                .with_children(|builder| {
+                    builder.spawn((TextBundle {
+                        text: Text::from_section(
+                            format!("You crashed! Final score {}", score.value.to_string()),
+                            TextStyle {
+                                font_size: 30.,
+                                color: Color::WHITE,
+                                font: asset_server.load("fonts/visitor.ttf"),
+                                ..default()
+                            },
+                        ),
+                        ..default()
+                    },));
+                });
+        });
 }

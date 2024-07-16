@@ -18,12 +18,14 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_turborand::prelude::RngPlugin;
 use bevy_tween::DefaultTweenPlugins;
 use config::Debug;
+use enter_game::EnterGamePlugin;
 use game::{prelude::MainCamera, GamePlugin};
 use interpolator::custom_interpolators_plugin;
 use main_menu::*;
 use std::{env, process, time::Duration};
 
 mod config;
+mod enter_game;
 mod game;
 mod interpolator;
 mod main_menu;
@@ -127,7 +129,7 @@ fn main() {
     // Example: Easy loading of assets
     .add_loading_state(
         LoadingState::new(GameState::AssetLoading)
-            .continue_to_state(GameState::InGame)
+            .continue_to_state(GameState::EnterGame)
             .load_collection::<ImageAssets>(),
     )
     .insert_resource(Debug(cfg.debug))
@@ -139,6 +141,7 @@ fn main() {
         RngPlugin::new().with_rng_seed(220718),
         EguiPlugin,
         MainMenuPlugin,
+        EnterGamePlugin,
         GamePlugin,
     ))
     .add_systems(Startup, (setup_camera, setup_fonts))
