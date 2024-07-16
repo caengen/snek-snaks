@@ -9,6 +9,8 @@ pub struct ExampleGameText;
 
 #[derive(Component)]
 pub struct PausedText;
+#[derive(Component)]
+pub struct ScoreText;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum PhysicsSet {

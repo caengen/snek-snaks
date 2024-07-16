@@ -76,6 +76,12 @@ enum GamePhase {
     #[default]
     Playing,
     Paused,
+    Dead,
+}
+
+#[derive(Resource)]
+pub struct Score {
+    value: u32,
 }
 
 /**
@@ -114,6 +120,7 @@ fn main() {
         custom_interpolators_plugin,
     ))
     .init_state::<GameState>()
+    .enable_state_scoped_entities::<GameState>()
     .add_computed_state::<InGame>()
     .add_sub_state::<GamePhase>()
     .insert_resource(Debug(cfg.debug))
@@ -135,7 +142,8 @@ fn main() {
         GamePlugin,
     ))
     .add_systems(Startup, (setup_camera, setup_fonts))
-    .add_systems(Update, window_resized);
+    .add_systems(Update, window_resized)
+    .insert_resource(Score { value: 0 });
 
     app.run();
 }

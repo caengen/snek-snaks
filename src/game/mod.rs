@@ -3,11 +3,12 @@ use self::{
     effects::flick_system,
     systems::{example_update, game_keys, pause_controls, setup_player},
 };
-use crate::{GamePhase, GameState};
+use crate::{GamePhase, GameState, Score};
 use bevy::prelude::*;
 use components::{GrowSnakeEvent, SpawnAppleEvent};
 use systems::{
-    check_apple_collision, check_death_collision, grow_snake, move_snakes, spawn_apple_handler,
+    check_apple_collision, check_death_collision, grow_snake, init_game, move_snakes,
+    spawn_apple_handler, update_score_text,
 };
 
 mod collision;
@@ -23,7 +24,7 @@ impl Plugin for GamePlugin {
             .add_event::<GrowSnakeEvent>()
             .add_systems(
                 OnEnter(GameState::InGame),
-                (setup_player, spawn_apple_handler),
+                (init_game, setup_player, spawn_apple_handler),
             )
             .add_systems(Update, pause_controls.run_if(in_state(GameState::InGame)))
             .add_systems(
@@ -33,6 +34,7 @@ impl Plugin for GamePlugin {
                     move_snakes,
                     grow_snake,
                     check_apple_collision,
+                    update_score_text.run_if(resource_changed::<Score>),
                 )
                     .run_if(in_state(GamePhase::Playing)),
             )

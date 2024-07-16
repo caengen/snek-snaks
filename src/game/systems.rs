@@ -8,12 +8,12 @@ use bevy_turborand::DelegatedRng;
 use bevy_turborand::{GlobalRng, RngComponent};
 use bevy_tween::tween::{AnimationTarget, IntoTarget};
 
-use crate::{GamePhase, SCREEN};
+use crate::{GamePhase, GameState, Score, SCREEN};
 
 use super::collision::circles_touching;
 use super::components::{
     Apple, Bounding, Collidible, Direction, ExampleGameText, GrowSnakeEvent, PausedText, Player,
-    Pos, SnakeBodyPart, SnakeHead, SpawnAppleEvent, Tail, Vel,
+    Pos, ScoreText, SnakeBodyPart, SnakeHead, SpawnAppleEvent, Tail, Vel,
 };
 use super::effects::Flick;
 
@@ -48,6 +48,7 @@ pub fn pause_controls(
                 match new_state {
                     GamePhase::Playing => *vis = Visibility::Hidden,
                     GamePhase::Paused => *vis = Visibility::Inherited,
+                    _ => {}
                 }
             }
         }
@@ -129,8 +130,69 @@ pub fn spawn_apple_handler(
             },
             Apple,
             Bounding(8.),
+            StateScoped(GameState::InGame),
         ));
     }
+}
+
+pub fn update_score_text(score: Res<Score>, mut query: Query<&mut Text, With<ScoreText>>) {
+    for mut text in query.iter_mut() {
+        text.sections[0].value = score.value.to_string();
+    }
+}
+
+pub fn init_game(mut commands: Commands, mut score: ResMut<Score>) {
+    score.value = 0;
+
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|builder| {
+            builder
+                .spawn(NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(10.),
+                        display: Display::Flex,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    ..default()
+                })
+                // .insert(
+                //     NineSliceUiTexture::from_slice(
+                //         server.load("panel_atlas.png"),
+                //         Rect::new(0., 0., 32., 32.),
+                //     )
+                //     .with_blend_color(Color::from(LinearRgba::RED))
+                //     .with_blend_mix(0.5),
+                // )
+                .with_children(|builder| {
+                    builder.spawn((
+                        TextBundle {
+                            text: Text::from_section(
+                                score.value.to_string(),
+                                TextStyle {
+                                    font_size: 50.,
+                                    color: Color::WHITE,
+                                    ..default()
+                                },
+                            ),
+                            ..default()
+                        },
+                        ScoreText,
+                    ));
+                });
+        });
 }
 
 pub fn setup_player(
@@ -172,6 +234,7 @@ pub fn setup_player(
             direction: Direction::Right,
         },
         Bounding(TILE_SIZE / 2.),
+        StateScoped(GameState::InGame),
     ));
     head_pos.translation.x -= TILE_SIZE;
 
@@ -263,6 +326,7 @@ fn spawn_body_part(
             SnakeBodyPart,
             Collidible,
             Bounding(TILE_SIZE / 2.),
+            StateScoped(GameState::InGame),
         ))
         .id()
 }
@@ -349,6 +413,7 @@ pub fn check_apple_collision(
     mut spawn_apple: EventWriter<SpawnAppleEvent>,
     mut grow_snake: EventWriter<GrowSnakeEvent>,
     mut fixed_time: ResMut<Time<Fixed>>,
+    mut score: ResMut<Score>,
 ) {
     let (head_transform, _, head_size) = head_query.single_mut();
     for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
@@ -357,6 +422,8 @@ pub fn check_apple_collision(
             commands.entity(apple_entity).despawn();
             spawn_apple.send(SpawnAppleEvent);
             grow_snake.send(GrowSnakeEvent);
+
+            score.value += 1;
 
             let new_timestep = fixed_time.timestep().mul_f32(0.95);
             fixed_time.set_timestep(new_timestep);
