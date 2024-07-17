@@ -7,3 +7,12 @@ Examples include project structure, game states transitions, "pausing" game stat
 
 To update Rust:
 `rustup update`
+
+- [ ] add score per player
+- [ ] add bombs
+- [ ] use skeleton when dead
+- [ ] add speed boost
+- [ ] add walls and limit play area
+- [ ] add portraits
+- [ ] add character selection menu
+- [ ] multiplayer
