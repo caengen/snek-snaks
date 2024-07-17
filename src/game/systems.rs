@@ -7,8 +7,8 @@ use crate::{GamePhase, GameState, Score, SCREEN};
 
 use super::collision::circles_touching;
 use super::components::{
-    Apple, Bounding, Collidible, Dead, ExampleGameText, GrowSnakeEvent, PausedText, Pos, ScoreText,
-    SnakeBodyPart, SnakeHead, SpawnAppleEvent, Tail, Vel,
+    Apple, Bounding, Collidible, Dead, ExampleGameText, GrowSnakeEvent, MoveAppleEvent, PausedText,
+    Pos, ScoreText, SnakeBodyPart, SnakeHead, Tail, Vel,
 };
 use super::prelude::{BodyRef, ControlScheme, Player, SnakeDirection, SnakeHeadRef};
 use super::INITIAL_GAME_SPEED;
@@ -99,44 +99,29 @@ pub fn game_keys(
     // }
 }
 
-pub fn spawn_apple_handler(
-    mut ev_spawn_apple: EventReader<SpawnAppleEvent>,
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+fn get_random_point() -> Vec2 {
+    let mut rng = GlobalRng::new();
+    let x_tiles = WORLD_SIZE_X as f32 / 2.;
+    let y_tiles = WORLD_SIZE_Y as f32 / 2.;
+    let x = rng.f32() * x_tiles * TILE_SIZE;
+    let x_values = [x, -x];
+    let x = rng.sample(&x_values);
+
+    let y = rng.f32() * y_tiles * TILE_SIZE;
+    let y_values = [y, -y];
+    let y = rng.sample(&y_values);
+
+    Vec2::new(*x.unwrap(), *y.unwrap())
+}
+
+pub fn move_apple_handler(
+    mut ev_spawn_apple: EventReader<MoveAppleEvent>,
+    mut apple_query: Query<(Entity, &mut Transform), With<Apple>>,
 ) {
     for _ in ev_spawn_apple.read() {
-        let apple_texture = asset_server.load("textures/chars/char_atlas.png");
-        let apple_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 4, 2, None, None);
-        let apple_atlas_layout = texture_atlases.add(apple_layout);
-
-        let mut rng = GlobalRng::new();
-        let x_tiles = WORLD_SIZE_X as f32 / 2.;
-        let y_tiles = WORLD_SIZE_Y as f32 / 2.;
-        let x = rng.f32() * x_tiles * TILE_SIZE;
-        let x_values = [x, -x];
-        let x = rng.sample(&x_values);
-
-        let y = rng.f32() * y_tiles * TILE_SIZE;
-        let y_values = [y, -y];
-        let y = rng.sample(&y_values);
-
-        commands.spawn((
-            TextureAtlas {
-                layout: apple_atlas_layout.clone(),
-                index: 7,
-                ..Default::default()
-            },
-            SpriteBundle {
-                texture: apple_texture.clone(),
-                transform: Transform::from_translation(Vec3::new(*x.unwrap(), *y.unwrap(), 0.))
-                    .with_scale(Vec3::splat(SPLAT_SIZE)),
-                ..Default::default()
-            },
-            Apple,
-            Bounding(8.),
-            StateScoped(GameState::InGame),
-        ));
+        let p = get_random_point();
+        let mut apple = apple_query.get_single_mut().unwrap();
+        apple.1.translation = p.extend(0.);
     }
 }
 
@@ -216,7 +201,6 @@ pub fn setup_players(
     asset_server: Res<AssetServer>,
     mut snake_players: Query<(Entity, &mut SnakeHeadRef), With<Player>>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
-    mut spawn_apple: EventWriter<SpawnAppleEvent>,
 ) {
     let char_texture = asset_server.load("textures/chars/char_atlas.png");
     let body_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 6, 1, None, None);
@@ -231,10 +215,10 @@ pub fn setup_players(
     let head_sprite = AnimationTarget.into_target();
 
     let mut head_pos = Transform::IDENTITY;
-    head_pos.translation = Vec3::new(0.0, 0.0, 0.);
-
     println!("spawning player");
-    for (_, mut snake_head_ref) in snake_players.iter_mut() {
+    for (i, (_, mut snake_head_ref)) in snake_players.iter_mut().enumerate() {
+        head_pos = Transform::from_translation(Vec3::new(0.0, i as f32 * TILE_SIZE * 2., 0.))
+            .with_scale(Vec3::splat(SPLAT_SIZE));
         println!("spawned player");
         // spawn head
         let head_entity = commands
@@ -246,7 +230,7 @@ pub fn setup_players(
                 },
                 SpriteBundle {
                     texture: char_texture.clone(),
-                    transform: Transform::IDENTITY.with_scale(Vec3::splat(SPLAT_SIZE)),
+                    transform: head_pos.clone(),
                     ..Default::default()
                 },
                 AnimationTarget,
@@ -272,7 +256,7 @@ pub fn setup_players(
                 &head_pos,
             );
             body_ref.push(id);
-            head_pos.translation.x -= TILE_SIZE;
+            // head_pos.translation.x -= TILE_SIZE;
         }
         let tail_entity = spawn_body_part(
             &head_entity,
@@ -287,10 +271,29 @@ pub fn setup_players(
         commands.entity(head_entity).insert(BodyRef(body_ref));
 
         commands.entity(tail_entity).insert(Tail);
-        head_pos.translation.y += TILE_SIZE * 2.;
     }
 
-    spawn_apple.send(SpawnAppleEvent);
+    // apple
+    let apple_texture = asset_server.load("textures/chars/char_atlas.png");
+    let apple_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 4, 2, None, None);
+    let apple_atlas_layout = texture_atlases.add(apple_layout);
+    let p = get_random_point();
+    commands.spawn((
+        TextureAtlas {
+            layout: apple_atlas_layout.clone(),
+            index: 7,
+            ..Default::default()
+        },
+        SpriteBundle {
+            texture: apple_texture.clone(),
+            transform: Transform::from_translation(p.extend(0.))
+                .with_scale(Vec3::splat(SPLAT_SIZE)),
+            ..Default::default()
+        },
+        Apple,
+        Bounding(8.),
+        StateScoped(GameState::InGame),
+    ));
     // .animation()
     // .repeat(Repeat::Infinitely)
     // .insert_tween_here(
@@ -298,6 +301,12 @@ pub fn setup_players(
     //     EaseFunction::Linear,
     //     head_sprite.with(atlas_index(0, 2)),
     // );
+}
+
+pub fn tear_down_players(player_query: Query<Entity, With<Player>>, mut commands: Commands) {
+    for entity in player_query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }
 
 pub fn grow_snake(
@@ -308,6 +317,7 @@ pub fn grow_snake(
     mut head_query: Query<(Entity, &mut BodyRef), (Without<SnakeBodyPart>, Without<Dead>)>,
     mut tail: Query<(Entity, &Transform, &mut TextureAtlas), With<Tail>>,
 ) {
+    //todo fix unwrap bug
     for ev in grow_snake.read() {
         let head_entity = ev.0;
         let (_, mut body_ref) = head_query.get_mut(head_entity).unwrap();
@@ -360,7 +370,7 @@ fn spawn_body_part(
             },
             SpriteBundle {
                 texture: texture.clone(),
-                transform: pos.clone().with_scale(Vec3::splat(SPLAT_SIZE)),
+                transform: pos.clone(),
                 ..Default::default()
             },
             AnimationTarget,
@@ -476,7 +486,7 @@ pub fn check_apple_collision(
         (Without<SnakeBodyPart>, Without<Dead>),
     >,
     apple_query: Query<(Entity, &Transform, &Bounding), With<Apple>>,
-    mut spawn_apple: EventWriter<SpawnAppleEvent>,
+    mut spawn_apple: EventWriter<MoveAppleEvent>,
     mut grow_snake: EventWriter<GrowSnakeEvent>,
     mut fixed_time: ResMut<Time<Fixed>>,
     mut score: ResMut<Score>,
@@ -485,8 +495,7 @@ pub fn check_apple_collision(
         for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
             if circles_touching(apple_transform, apple_size, head_transform, head_size) {
                 // EATEN
-                commands.entity(apple_entity).despawn();
-                spawn_apple.send(SpawnAppleEvent);
+                spawn_apple.send(MoveAppleEvent);
                 grow_snake.send(GrowSnakeEvent(entity));
 
                 score.value += 1;
@@ -529,7 +538,7 @@ pub fn example_update(
 }
 
 pub fn check_all_dead(
-    head_query: Query<(Entity, Has<Dead>)>,
+    head_query: Query<(Entity, Has<Dead>), With<SnakeHead>>,
     mut next_state: ResMut<NextState<GamePhase>>,
 ) {
     let all_dead = head_query.iter().all(|(_, dead)| dead);
@@ -544,6 +553,7 @@ pub fn dead_controls(
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
+        println!("Setting next state to EnterGame");
         next_state.set(GameState::EnterGame);
     }
 }

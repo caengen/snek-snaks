@@ -53,7 +53,7 @@ pub struct SnakeHead {
 pub struct SnakeBodyPart;
 
 #[derive(Event)]
-pub struct SpawnAppleEvent;
+pub struct MoveAppleEvent;
 
 #[derive(Event)]
 pub struct GrowSnakeEvent(pub Entity);

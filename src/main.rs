@@ -1,5 +1,6 @@
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
+    input::common_conditions::input_toggle_active,
     log::{Level, LogPlugin},
     prelude::*,
     window::PresentMode,
@@ -133,13 +134,13 @@ fn main() {
             .load_collection::<ImageAssets>(),
     )
     .insert_resource(Debug(cfg.debug))
-    // .add_plugins(
-    //     WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Escape)),
-    // )
+    .add_plugins(
+        WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::Escape)),
+    )
     .add_plugins((
         FrameTimeDiagnosticsPlugin::default(),
         RngPlugin::new().with_rng_seed(220718),
-        EguiPlugin,
+        // EguiPlugin,
         MainMenuPlugin,
         EnterGamePlugin,
         GamePlugin,
