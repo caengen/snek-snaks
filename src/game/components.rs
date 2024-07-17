@@ -1,5 +1,7 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::HashMap};
 use derive_more::From;
+
+use super::prelude::SnakeDirection;
 
 #[derive(Resource)]
 pub struct Paused(pub bool);
@@ -11,6 +13,9 @@ pub struct ExampleGameText;
 pub struct PausedText;
 #[derive(Component)]
 pub struct ScoreText;
+
+#[derive(Component)]
+pub struct Dead;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum PhysicsSet {
@@ -25,6 +30,9 @@ pub struct Vel(pub Vec2);
 pub struct Pos(pub Vec2);
 
 #[derive(Debug, Component, From)]
+/**
+ * The Bounding component is used to represent the radius of an entity in pixels.
+ */
 pub struct Bounding(pub f32);
 
 #[derive(Component)]
@@ -36,19 +44,9 @@ pub struct AnimationIndices {
 #[derive(Component, Deref, DerefMut)]
 pub struct AnimationTimer(pub Timer);
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Direction {
-    Left,
-    Right,
-    Up,
-    Down,
-}
-#[derive(Component)]
-pub struct Player;
-
 #[derive(Component)]
 pub struct SnakeHead {
-    pub direction: Direction,
+    pub direction: SnakeDirection,
 }
 
 #[derive(Component)]
@@ -58,7 +56,7 @@ pub struct SnakeBodyPart;
 pub struct SpawnAppleEvent;
 
 #[derive(Event)]
-pub struct GrowSnakeEvent;
+pub struct GrowSnakeEvent(pub Entity);
 
 #[derive(Component)]
 pub struct Apple;
@@ -68,3 +66,21 @@ pub struct Tail;
 
 #[derive(Component, Clone, PartialEq)]
 pub struct Collidible;
+
+// pub const KeyMap1: HashMap<KeyCode, Direction> = {
+//     let mut key_map = HashMap::new();
+//     key_map.insert(KeyCode::KeyW, Direction::Up);
+//     key_map.insert(KeyCode::KeyA, Direction::Left);
+//     key_map.insert(KeyCode::KeyS, Direction::Down);
+//     key_map.insert(KeyCode::KeyD, Direction::Right);
+//     key_map
+// };
+
+// pub const KeyMap2: HashMap<KeyCode, Direction> = {
+//     let mut key_map = HashMap::new();
+//     key_map.insert(KeyCode::ArrowUp, Direction::Up);
+//     key_map.insert(KeyCode::ArrowLeft, Direction::Left);
+//     key_map.insert(KeyCode::ArrowDown, Direction::Down);
+//     key_map.insert(KeyCode::ArrowRight, Direction::Right);
+//     key_map
+// };

@@ -1,9 +1,4 @@
-use std::time::Duration;
-
-use bevy::a11y::accesskit::Size;
-use bevy::ecs::entity;
 use bevy::prelude::*;
-use bevy::transform::commands;
 use bevy_turborand::DelegatedRng;
 use bevy_turborand::{GlobalRng, RngComponent};
 use bevy_tween::tween::{AnimationTarget, IntoTarget};
@@ -12,12 +7,14 @@ use crate::{GamePhase, GameState, Score, SCREEN};
 
 use super::collision::circles_touching;
 use super::components::{
-    Apple, Bounding, Collidible, Direction, ExampleGameText, GrowSnakeEvent, PausedText, Player,
-    Pos, ScoreText, SnakeBodyPart, SnakeHead, SpawnAppleEvent, Tail, Vel,
+    Apple, Bounding, Collidible, Dead, ExampleGameText, GrowSnakeEvent, PausedText, Pos, ScoreText,
+    SnakeBodyPart, SnakeHead, SpawnAppleEvent, Tail, Vel,
 };
-use super::effects::Flick;
+use super::prelude::{BodyRef, ControlScheme, Player, SnakeDirection, SnakeHeadRef};
+use super::INITIAL_GAME_SPEED;
 
 const TILE_SIZE: f32 = 32.;
+const SPLAT_SIZE: f32 = 2.;
 const WORLD_SIZE_X: u32 = 40;
 const WORLD_SIZE_Y: u32 = 22;
 // const TILE_SIZE: f32 = 16.;
@@ -55,43 +52,51 @@ pub fn pause_controls(
     }
 }
 
-fn valid_direction(prev: &Direction, new: &Direction) -> bool {
+fn valid_direction(prev: &SnakeDirection, new: &SnakeDirection) -> bool {
     match prev {
-        Direction::Left => *new != Direction::Right,
-        Direction::Right => *new != Direction::Left,
-        Direction::Up => *new != Direction::Down,
-        Direction::Down => *new != Direction::Up,
+        SnakeDirection::Left => *new != SnakeDirection::Right,
+        SnakeDirection::Right => *new != SnakeDirection::Left,
+        SnakeDirection::Up => *new != SnakeDirection::Down,
+        SnakeDirection::Down => *new != SnakeDirection::Up,
     }
 }
 
 pub fn game_keys(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut snakes: Query<(&mut Transform, &mut SnakeHead), With<Player>>,
+    players: Query<(&ControlScheme, &SnakeHeadRef), With<Player>>,
+    mut snake_heads: Query<&mut SnakeHead>,
 ) {
-    let mut direction = None;
+    for (controls, snake_head_ref) in players.iter() {
+        let mut direction = None;
+        for key in keyboard.get_just_pressed() {
+            direction = controls.direction_changed(key);
+        }
 
-    if keyboard.any_pressed([KeyCode::ArrowLeft, KeyCode::KeyA]) {
-        direction = Some(Direction::Left);
-    }
-    if keyboard.any_pressed([KeyCode::ArrowRight, KeyCode::KeyD]) {
-        direction = Some(Direction::Right);
-    }
-    if keyboard.any_pressed([KeyCode::ArrowUp, KeyCode::KeyW]) {
-        direction = Some(Direction::Up);
-    }
-    if keyboard.any_pressed([KeyCode::ArrowDown, KeyCode::KeyS]) {
-        direction = Some(Direction::Down);
-    }
+        if let Some(direction) = direction {
+            let mut snake_head = snake_heads.get_mut(snake_head_ref.0.unwrap()).unwrap();
 
-    if let Some(direction) = direction {
-        for (mut transform, mut head) in snakes.iter_mut() {
-            if !valid_direction(&head.direction, &direction) {
+            if !valid_direction(&snake_head.direction, &direction) {
                 continue;
             }
 
-            head.direction = direction.clone();
+            snake_head.direction = direction.clone();
         }
     }
+
+    // let mut direction = None;
+
+    // if keyboard.any_pressed([KeyCode::ArrowLeft, KeyCode::KeyA]) {
+    //     direction = Some(SnakeDirection::Left);
+    // }
+    // if keyboard.any_pressed([KeyCode::ArrowRight, KeyCode::KeyD]) {
+    //     direction = Some(SnakeDirection::Right);
+    // }
+    // if keyboard.any_pressed([KeyCode::ArrowUp, KeyCode::KeyW]) {
+    //     direction = Some(SnakeDirection::Up);
+    // }
+    // if keyboard.any_pressed([KeyCode::ArrowDown, KeyCode::KeyS]) {
+    //     direction = Some(SnakeDirection::Down);
+    // }
 }
 
 pub fn spawn_apple_handler(
@@ -108,11 +113,11 @@ pub fn spawn_apple_handler(
         let mut rng = GlobalRng::new();
         let x_tiles = WORLD_SIZE_X as f32 / 2.;
         let y_tiles = WORLD_SIZE_Y as f32 / 2.;
-        let x = rng.f32() * x_tiles * TILE_SIZE - TILE_SIZE / 2.;
+        let x = rng.f32() * x_tiles * TILE_SIZE;
         let x_values = [x, -x];
         let x = rng.sample(&x_values);
 
-        let y = rng.f32() * y_tiles * TILE_SIZE - TILE_SIZE / 2.;
+        let y = rng.f32() * y_tiles * TILE_SIZE;
         let y_values = [y, -y];
         let y = rng.sample(&y_values);
 
@@ -124,8 +129,8 @@ pub fn spawn_apple_handler(
             },
             SpriteBundle {
                 texture: apple_texture.clone(),
-                transform: Transform::from_translation(Vec3::new(*x.unwrap(), *y.unwrap(), 2.))
-                    .with_scale(Vec3::splat(2.)),
+                transform: Transform::from_translation(Vec3::new(*x.unwrap(), *y.unwrap(), 0.))
+                    .with_scale(Vec3::splat(SPLAT_SIZE)),
                 ..Default::default()
             },
             Apple,
@@ -141,8 +146,14 @@ pub fn update_score_text(score: Res<Score>, mut query: Query<&mut Text, With<Sco
     }
 }
 
-pub fn init_game(mut commands: Commands, mut score: ResMut<Score>, asset_server: Res<AssetServer>) {
+pub fn init_game(
+    mut commands: Commands,
+    mut score: ResMut<Score>,
+    asset_server: Res<AssetServer>,
+    mut fixed_time: ResMut<Time<Fixed>>,
+) {
     score.value = 0;
+    fixed_time.set_timestep_hz(INITIAL_GAME_SPEED);
 
     // Score Text
     commands
@@ -200,9 +211,10 @@ pub fn init_game(mut commands: Commands, mut score: ResMut<Score>, asset_server:
         });
 }
 
-pub fn setup_player(
+pub fn setup_players(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut snake_players: Query<(Entity, &mut SnakeHeadRef), With<Player>>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut spawn_apple: EventWriter<SpawnAppleEvent>,
 ) {
@@ -219,51 +231,65 @@ pub fn setup_player(
     let head_sprite = AnimationTarget.into_target();
 
     let mut head_pos = Transform::IDENTITY;
-    head_pos.translation = Vec3::new(-TILE_SIZE / 2., -TILE_SIZE / 2., 0.);
+    head_pos.translation = Vec3::new(0.0, 0.0, 0.);
 
-    // spawn head
-    commands.spawn((
-        TextureAtlas {
-            layout: body_atlas_layout.clone(),
-            index: 5,
-            ..Default::default()
-        },
-        SpriteBundle {
-            texture: char_texture.clone(),
-            transform: Transform::IDENTITY.with_scale(Vec3::splat(2.)),
-            ..Default::default()
-        },
-        AnimationTarget,
-        Player {},
-        SnakeHead {
-            direction: Direction::Right,
-        },
-        Bounding(TILE_SIZE / 2.),
-        StateScoped(GameState::InGame),
-    ));
-    head_pos.translation.x -= TILE_SIZE;
+    println!("spawning player");
+    for (_, mut snake_head_ref) in snake_players.iter_mut() {
+        println!("spawned player");
+        // spawn head
+        let head_entity = commands
+            .spawn((
+                TextureAtlas {
+                    layout: body_atlas_layout.clone(),
+                    index: 5,
+                    ..Default::default()
+                },
+                SpriteBundle {
+                    texture: char_texture.clone(),
+                    transform: Transform::IDENTITY.with_scale(Vec3::splat(SPLAT_SIZE)),
+                    ..Default::default()
+                },
+                AnimationTarget,
+                SnakeHead {
+                    direction: SnakeDirection::Right,
+                },
+                Bounding(TILE_SIZE / 2.),
+                StateScoped(GameState::InGame),
+            ))
+            .id();
+        *snake_head_ref = SnakeHeadRef(Some(head_entity));
+        head_pos.translation.x -= TILE_SIZE;
 
-    // spawn body
-    for _ in 0..2 {
-        spawn_body_part(
+        let mut body_ref = Vec::new();
+        // spawn body
+        for _ in 0..2 {
+            let id = spawn_body_part(
+                &head_entity,
+                &mut commands,
+                &body_atlas_layout,
+                4,
+                &char_texture,
+                &head_pos,
+            );
+            body_ref.push(id);
+            head_pos.translation.x -= TILE_SIZE;
+        }
+        let tail_entity = spawn_body_part(
+            &head_entity,
             &mut commands,
             &body_atlas_layout,
+            // 3 need to make more textures,
             4,
             &char_texture,
             &head_pos,
         );
-        head_pos.translation.x -= TILE_SIZE;
-    }
-    let tail = spawn_body_part(
-        &mut commands,
-        &body_atlas_layout,
-        // 3 need to make more textures,
-        4,
-        &char_texture,
-        &head_pos,
-    );
+        body_ref.push(tail_entity);
+        commands.entity(head_entity).insert(BodyRef(body_ref));
 
-    commands.entity(tail).insert(Tail);
+        commands.entity(tail_entity).insert(Tail);
+        head_pos.translation.y += TILE_SIZE * 2.;
+    }
+
     spawn_apple.send(SpawnAppleEvent);
     // .animation()
     // .repeat(Repeat::Infinitely)
@@ -279,9 +305,13 @@ pub fn grow_snake(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut grow_snake: EventReader<GrowSnakeEvent>,
+    mut head_query: Query<(Entity, &mut BodyRef), (Without<SnakeBodyPart>, Without<Dead>)>,
     mut tail: Query<(Entity, &Transform, &mut TextureAtlas), With<Tail>>,
 ) {
-    for _ in grow_snake.read() {
+    for ev in grow_snake.read() {
+        let head_entity = ev.0;
+        let (_, mut body_ref) = head_query.get_mut(head_entity).unwrap();
+
         let full_texture = asset_server.load("textures/chars/char_atlas.png");
         let body_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 5, 1, None, None);
         let body_atlas_layout = texture_atlases.add(body_layout);
@@ -289,8 +319,11 @@ pub fn grow_snake(
         let tail_layout = TextureAtlasLayout::from_grid(UVec2::new(32, 16), 3, 3, None, None);
         let tail_atlas_layout = texture_atlases.add(tail_layout);
 
-        let (old_tail, transform, mut old_atlas) = tail.single_mut();
+        // todo unwrap unwrap unwrap
+        let (old_tail, transform, mut old_atlas) =
+            tail.get_mut(*body_ref.0.last().unwrap()).unwrap();
         let new_tail = spawn_body_part(
+            &head_entity,
             &mut commands,
             &body_atlas_layout,
             // 3, TODO need to make more textures
@@ -305,10 +338,13 @@ pub fn grow_snake(
         old_atlas.index = 4;
 
         commands.entity(new_tail).insert(Tail);
+        // add new tail to body ref of head
+        body_ref.0.push(new_tail);
     }
 }
 
 fn spawn_body_part(
+    snake_head_ref: &Entity,
     commands: &mut Commands,
     layout: &Handle<TextureAtlasLayout>,
     index: usize,
@@ -324,37 +360,51 @@ fn spawn_body_part(
             },
             SpriteBundle {
                 texture: texture.clone(),
-                transform: pos.clone().with_scale(Vec3::splat(2.)),
+                transform: pos.clone().with_scale(Vec3::splat(SPLAT_SIZE)),
                 ..Default::default()
             },
             AnimationTarget,
             SnakeBodyPart,
             Collidible,
             Bounding(TILE_SIZE / 2.),
+            SnakeHeadRef(Some(snake_head_ref.clone())),
             StateScoped(GameState::InGame),
         ))
         .id()
 }
 
 pub fn move_snakes(
-    mut head_query: Query<(&mut Transform, &SnakeHead), Without<SnakeBodyPart>>,
-    mut snake_body_parts: Query<(&mut Transform), With<SnakeBodyPart>>,
+    mut head_query: Query<
+        (&mut Transform, &SnakeHead, &BodyRef),
+        (Without<SnakeBodyPart>, Without<Dead>),
+    >,
+    mut snake_body_parts: Query<&mut Transform, With<SnakeBodyPart>>,
 ) {
-    for (mut transform, head) in head_query.iter_mut() {
+    for (mut transform, head, body_ref) in head_query.iter_mut() {
         let move_speed = TILE_SIZE;
         let move_delta = match head.direction {
-            Direction::Left => Vec3::new(-move_speed, 0., 0.),
-            Direction::Right => Vec3::new(move_speed, 0., 0.),
-            Direction::Up => Vec3::new(0., move_speed, 0.),
-            Direction::Down => Vec3::new(0., -move_speed, 0.),
+            SnakeDirection::Left => Vec3::new(-move_speed, 0., 0.),
+            SnakeDirection::Right => Vec3::new(move_speed, 0., 0.),
+            SnakeDirection::Up => Vec3::new(0., move_speed, 0.),
+            SnakeDirection::Down => Vec3::new(0., -move_speed, 0.),
         };
 
         let mut prev_pos = transform.translation;
         transform.translation += move_delta;
 
-        // move body
-        let len = snake_body_parts.iter().len();
-        for (i, mut part_transform) in snake_body_parts.iter_mut().enumerate() {
+        let len = body_ref.0.iter().len();
+        for (i, body_entity) in body_ref.0.iter().enumerate() {
+            let res = snake_body_parts.get_mut(*body_entity);
+
+            match res {
+                Ok(_) => {}
+                Err(_) => {
+                    println!("body part not found");
+                    continue;
+                }
+            }
+            let mut part_transform = res.unwrap();
+
             let old = part_transform.translation;
             part_transform.translation = prev_pos;
             if i + 1 == len {
@@ -374,64 +424,76 @@ pub fn move_snakes(
 
         // rotate head
         match head.direction {
-            Direction::Left => transform.rotation = Quat::from_rotation_z(-180.0f32.to_radians()),
-            Direction::Right => transform.rotation = Quat::from_rotation_z(0.0f32.to_radians()),
-            Direction::Up => transform.rotation = Quat::from_rotation_z(90.0f32.to_radians()),
-            Direction::Down => transform.rotation = Quat::from_rotation_z(-90.0f32.to_radians()),
+            SnakeDirection::Left => {
+                transform.rotation = Quat::from_rotation_z(-180.0f32.to_radians())
+            }
+            SnakeDirection::Right => {
+                transform.rotation = Quat::from_rotation_z(0.0f32.to_radians())
+            }
+            SnakeDirection::Up => transform.rotation = Quat::from_rotation_z(90.0f32.to_radians()),
+            SnakeDirection::Down => {
+                transform.rotation = Quat::from_rotation_z(-90.0f32.to_radians())
+            }
         }
     }
 }
 
 pub fn check_death_collision(
     mut commands: Commands,
-    mut head_query: Query<(&Transform, &SnakeHead, &Bounding)>,
+    mut head_query: Query<(Entity, &Transform, &SnakeHead, &Bounding), Without<Dead>>,
     mut collidibles: Query<(&Transform, &Bounding), With<Collidible>>,
     mut next_state: ResMut<NextState<GamePhase>>,
 ) {
-    let (head_transform, _, head_size) = head_query.single_mut();
-    let head_pos = head_transform.translation;
+    for (entity, head_transform, _, head_size) in head_query.iter_mut() {
+        let head_pos = head_transform.translation;
 
-    for (collidable_transform, collidable_size) in collidibles.iter() {
-        if circles_touching(
-            head_transform,
-            head_size,
-            collidable_transform,
-            collidable_size,
-        ) {
-            next_state.set(GamePhase::Dead);
+        for (collidable_transform, collidable_size) in collidibles.iter() {
+            if circles_touching(
+                head_transform,
+                head_size,
+                collidable_transform,
+                collidable_size,
+            ) {
+                commands.entity(entity).insert(Dead);
+                // next_state.set(GamePhase::Dead);
+            }
         }
-    }
 
-    if head_pos.x < -(WORLD_SIZE_X as f32 / 2. as f32 * TILE_SIZE)
-        || head_pos.x > WORLD_SIZE_X as f32 / 2. as f32 * TILE_SIZE
-        || head_pos.y < -(WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE)
-        || head_pos.y > WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE
-    {
-        next_state.set(GamePhase::Dead);
+        if head_pos.x < -(WORLD_SIZE_X as f32 / 2. as f32 * TILE_SIZE)
+            || head_pos.x > WORLD_SIZE_X as f32 / 2. as f32 * TILE_SIZE
+            || head_pos.y < -(WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE)
+            || head_pos.y > WORLD_SIZE_Y as f32 / 2. as f32 * TILE_SIZE
+        {
+            commands.entity(entity).insert(Dead);
+        }
     }
 }
 
 pub fn check_apple_collision(
     mut commands: Commands,
-    mut head_query: Query<(&Transform, &SnakeHead, &Bounding), Without<SnakeBodyPart>>,
+    mut head_query: Query<
+        (Entity, &Transform, &SnakeHead, &Bounding),
+        (Without<SnakeBodyPart>, Without<Dead>),
+    >,
     apple_query: Query<(Entity, &Transform, &Bounding), With<Apple>>,
     mut spawn_apple: EventWriter<SpawnAppleEvent>,
     mut grow_snake: EventWriter<GrowSnakeEvent>,
     mut fixed_time: ResMut<Time<Fixed>>,
     mut score: ResMut<Score>,
 ) {
-    let (head_transform, _, head_size) = head_query.single_mut();
-    for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
-        if circles_touching(apple_transform, apple_size, head_transform, head_size) {
-            // EATEN
-            commands.entity(apple_entity).despawn();
-            spawn_apple.send(SpawnAppleEvent);
-            grow_snake.send(GrowSnakeEvent);
+    for (entity, head_transform, _, head_size) in head_query.iter_mut() {
+        for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
+            if circles_touching(apple_transform, apple_size, head_transform, head_size) {
+                // EATEN
+                commands.entity(apple_entity).despawn();
+                spawn_apple.send(SpawnAppleEvent);
+                grow_snake.send(GrowSnakeEvent(entity));
 
-            score.value += 1;
+                score.value += 1;
 
-            let new_timestep = fixed_time.timestep().mul_f32(0.95);
-            fixed_time.set_timestep(new_timestep);
+                let new_timestep = fixed_time.timestep().mul_f32(0.95);
+                fixed_time.set_timestep(new_timestep);
+            }
         }
     }
 }
@@ -463,6 +525,17 @@ pub fn example_update(
 
         style.top = Val::Px(pos.0.y);
         style.left = Val::Px(pos.0.x);
+    }
+}
+
+pub fn check_all_dead(
+    head_query: Query<(Entity, Has<Dead>)>,
+    mut next_state: ResMut<NextState<GamePhase>>,
+) {
+    let all_dead = head_query.iter().all(|(_, dead)| dead);
+
+    if all_dead {
+        next_state.set(GamePhase::Dead);
     }
 }
 
