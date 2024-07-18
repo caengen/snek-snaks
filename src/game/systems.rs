@@ -1,16 +1,17 @@
 use bevy::prelude::*;
+use bevy_egui::egui::style;
 use bevy_turborand::DelegatedRng;
 use bevy_turborand::{GlobalRng, RngComponent};
 use bevy_tween::tween::{AnimationTarget, IntoTarget};
 
-use crate::{GamePhase, GameState, Score, SCREEN};
+use crate::{GamePhase, GameState, SCREEN};
 
 use super::collision::circles_touching;
 use super::components::{
-    Apple, Bounding, Collidible, Dead, ExampleGameText, GrowSnakeEvent, MoveAppleEvent, PausedText,
-    Pos, ScoreText, SnakeBodyPart, SnakeHead, Tail, Vel,
+    Apple, Bounding, Collidible, Dead, ExampleGameText, GameEntityRef, GrowSnakeEvent,
+    MoveAppleEvent, PausedText, Pos, ScoreText, SnakeBodyPart, SnakeHead, Tail, Vel,
 };
-use super::prelude::{BodyRef, ControlScheme, Player, SnakeDirection, SnakeHeadRef};
+use super::prelude::{BodyRef, ControlScheme, Player, Score, SnakeDirection, SnakeHeadRef};
 use super::INITIAL_GAME_SPEED;
 
 const TILE_SIZE: f32 = 32.;
@@ -125,20 +126,25 @@ pub fn move_apple_handler(
     }
 }
 
-pub fn update_score_text(score: Res<Score>, mut query: Query<&mut Text, With<ScoreText>>) {
-    for mut text in query.iter_mut() {
+pub fn update_score_text(
+    player_query: Query<&Score, With<Player>>,
+    mut text_query: Query<(&mut Text, &GameEntityRef), With<ScoreText>>,
+) {
+    for (mut text, ge_ref) in text_query.iter_mut() {
+        let score = player_query.get(ge_ref.0).unwrap();
         text.sections[0].value = score.value.to_string();
     }
 }
 
 pub fn init_game(
     mut commands: Commands,
-    mut score: ResMut<Score>,
+    score_query: Query<(Entity, &Score)>,
     asset_server: Res<AssetServer>,
     mut fixed_time: ResMut<Time<Fixed>>,
 ) {
-    score.value = 0;
     fixed_time.set_timestep_hz(INITIAL_GAME_SPEED);
+
+    let score_len = score_query.iter().len();
 
     // Score Text
     commands
@@ -161,9 +167,8 @@ pub fn init_game(
                     style: Style {
                         width: Val::Percent(100.),
                         height: Val::Percent(10.),
-                        display: Display::Flex,
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
+                        display: Display::Grid,
+                        grid_auto_flow: GridAutoFlow::Column,
                         ..default()
                     },
                     ..default()
@@ -177,21 +182,31 @@ pub fn init_game(
                 //     .with_blend_mix(0.5),
                 // )
                 .with_children(|builder| {
-                    builder.spawn((
-                        TextBundle {
-                            text: Text::from_section(
-                                score.value.to_string(),
-                                TextStyle {
-                                    font_size: 50.,
-                                    color: Color::WHITE,
-                                    font: asset_server.load("fonts/visitor.ttf"),
+                    for (entity, score) in score_query.iter() {
+                        builder.spawn((
+                            TextBundle {
+                                style: Style {
+                                    margin: UiRect {
+                                        left: Val::Auto,
+                                        right: Val::Auto,
+                                        ..default()
+                                    },
                                     ..default()
                                 },
-                            ),
-                            ..default()
-                        },
-                        ScoreText,
-                    ));
+                                text: Text::from_section(
+                                    score.value.to_string(),
+                                    TextStyle {
+                                        font_size: 50.,
+                                        color: Color::WHITE,
+                                        font: asset_server.load("fonts/visitor.ttf"),
+                                    },
+                                ),
+                                ..default()
+                            },
+                            ScoreText,
+                            GameEntityRef(entity),
+                        ));
+                    }
                 });
         });
 }
@@ -489,9 +504,21 @@ pub fn check_apple_collision(
     mut spawn_apple: EventWriter<MoveAppleEvent>,
     mut grow_snake: EventWriter<GrowSnakeEvent>,
     mut fixed_time: ResMut<Time<Fixed>>,
-    mut score: ResMut<Score>,
+    mut player_query: Query<(&mut Score, &SnakeHeadRef), With<Player>>,
 ) {
-    for (entity, head_transform, _, head_size) in head_query.iter_mut() {
+    for (mut score, headRef) in player_query.iter_mut() {
+        //todo fixup this
+        match headRef.0 {
+            None => continue,
+            _ => {}
+        }
+
+        let head = head_query.get(headRef.0.unwrap());
+        match head {
+            Ok(_) => {}
+            Err(_) => continue,
+        }
+        let (entity, head_transform, _, head_size) = head.unwrap();
         for (apple_entity, apple_transform, apple_size) in apple_query.iter() {
             if circles_touching(apple_transform, apple_size, head_transform, head_size) {
                 // EATEN
@@ -505,6 +532,8 @@ pub fn check_apple_collision(
             }
         }
     }
+    // for (entity, head_transform, _, head_size) in head_query.iter_mut() {
+    // }
 }
 
 pub fn example_update(
@@ -558,7 +587,7 @@ pub fn dead_controls(
     }
 }
 
-pub fn dead_text(mut commands: Commands, asset_server: Res<AssetServer>, score: Res<Score>) {
+pub fn dead_text(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn((
             NodeBundle {
@@ -597,7 +626,7 @@ pub fn dead_text(mut commands: Commands, asset_server: Res<AssetServer>, score: 
                 .with_children(|builder| {
                     builder.spawn((TextBundle {
                         text: Text::from_section(
-                            format!("You crashed! Final score {}", score.value.to_string()),
+                            format!("You crashed!"),
                             TextStyle {
                                 font_size: 30.,
                                 color: Color::WHITE,

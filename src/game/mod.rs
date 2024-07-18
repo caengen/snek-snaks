@@ -3,7 +3,7 @@ use self::{
     effects::flick_system,
     systems::{example_update, game_keys, pause_controls, setup_players},
 };
-use crate::{GamePhase, GameState, Score};
+use crate::{GamePhase, GameState};
 use bevy::prelude::*;
 use components::{GrowSnakeEvent, MoveAppleEvent};
 use systems::{
@@ -32,12 +32,7 @@ impl Plugin for GamePlugin {
             // Playing state
             .add_systems(
                 FixedUpdate,
-                (
-                    move_snakes,
-                    grow_snake,
-                    update_score_text.run_if(resource_changed::<Score>),
-                )
-                    .run_if(in_state(GamePhase::Playing)),
+                (move_snakes, grow_snake, update_score_text).run_if(in_state(GamePhase::Playing)),
             )
             .add_systems(
                 Update,

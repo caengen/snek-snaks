@@ -81,12 +81,6 @@ enum GamePhase {
     Paused,
     Dead,
 }
-
-#[derive(Resource)]
-pub struct Score {
-    value: u32,
-}
-
 /**
  * The configuration for the game loop. For cleanliness
  */
@@ -146,8 +140,7 @@ fn main() {
         GamePlugin,
     ))
     .add_systems(Startup, (setup_camera, setup_fonts))
-    .add_systems(Update, window_resized)
-    .insert_resource(Score { value: 0 });
+    .add_systems(Update, window_resized);
 
     app.run();
 }

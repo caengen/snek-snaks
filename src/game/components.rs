@@ -15,6 +15,9 @@ pub struct PausedText;
 pub struct ScoreText;
 
 #[derive(Component)]
+pub struct GameEntityRef(pub Entity);
+
+#[derive(Component)]
 pub struct Dead;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]

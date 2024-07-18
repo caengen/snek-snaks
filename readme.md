@@ -8,7 +8,7 @@ Examples include project structure, game states transitions, "pausing" game stat
 To update Rust:
 `rustup update`
 
-- [ ] add score per player
+- [x] add score per player
 - [ ] add bombs
 - [ ] use skeleton when dead
 - [ ] add speed boost

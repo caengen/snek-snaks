@@ -38,10 +38,16 @@ pub struct Player;
 #[derive(Component)]
 pub struct Named(pub String);
 
+#[derive(Component)]
+pub struct Score {
+    pub value: u32,
+}
+
 #[derive(Bundle)]
 pub struct PlayerBundle {
     pub player: Player,
     pub name: Named,
     pub control_scheme: ControlScheme,
     pub snake_head_ref: SnakeHeadRef,
+    pub score: Score,
 }
