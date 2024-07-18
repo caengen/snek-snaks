@@ -11,7 +11,9 @@ use super::components::{
     Apple, Bounding, Collidible, Dead, ExampleGameText, GameEntityRef, GrowSnakeEvent,
     MoveAppleEvent, PausedText, Pos, ScoreText, SnakeBodyPart, SnakeHead, Tail, Vel,
 };
-use super::prelude::{BodyRef, ControlScheme, Player, Score, SnakeDirection, SnakeHeadRef};
+use super::prelude::{
+    BodyRef, ControlScheme, Player, Score, SnakeDirection, SnakeHeadRef, SnakeTextureIndex,
+};
 use super::INITIAL_GAME_SPEED;
 
 const TILE_SIZE: f32 = 32.;
@@ -214,24 +216,18 @@ pub fn init_game(
 pub fn setup_players(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut snake_players: Query<(Entity, &mut SnakeHeadRef), With<Player>>,
+    mut snake_players: Query<(Entity, &mut SnakeHeadRef, &SnakeTextureIndex), With<Player>>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    let char_texture = asset_server.load("textures/chars/char_atlas.png");
-    let body_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 6, 1, None, None);
-    let body_atlas_layout = texture_atlases.add(body_layout);
-
-    let tail_layout = TextureAtlasLayout::from_grid(UVec2::new(32, 16), 3, 3, None, None);
-    let tail_atlas_layout = texture_atlases.add(tail_layout);
-
-    // let head_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 4, 1, None, None);
-    // let head_atlas_layout = texture_atlases.add(head_layout);
+    let snake_texture = asset_server.load("textures/chars/sneks.png");
+    let snake_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 3, 5, None, None);
+    let snake_atlas_layout = texture_atlases.add(snake_layout);
 
     let head_sprite = AnimationTarget.into_target();
 
     let mut head_pos = Transform::IDENTITY;
     println!("spawning player");
-    for (i, (_, mut snake_head_ref)) in snake_players.iter_mut().enumerate() {
+    for (i, (_, mut snake_head_ref, texture_index)) in snake_players.iter_mut().enumerate() {
         head_pos = Transform::from_translation(Vec3::new(0.0, i as f32 * TILE_SIZE * 2., 0.))
             .with_scale(Vec3::splat(SPLAT_SIZE));
         println!("spawned player");
@@ -239,12 +235,12 @@ pub fn setup_players(
         let head_entity = commands
             .spawn((
                 TextureAtlas {
-                    layout: body_atlas_layout.clone(),
-                    index: 5,
+                    layout: snake_atlas_layout.clone(),
+                    index: 2 + (3 * texture_index.0),
                     ..Default::default()
                 },
                 SpriteBundle {
-                    texture: char_texture.clone(),
+                    texture: snake_texture.clone(),
                     transform: head_pos.clone(),
                     ..Default::default()
                 },
@@ -265,9 +261,9 @@ pub fn setup_players(
             let id = spawn_body_part(
                 &head_entity,
                 &mut commands,
-                &body_atlas_layout,
-                4,
-                &char_texture,
+                &snake_atlas_layout,
+                1 + (3 * texture_index.0),
+                &snake_texture,
                 &head_pos,
             );
             body_ref.push(id);
@@ -276,10 +272,10 @@ pub fn setup_players(
         let tail_entity = spawn_body_part(
             &head_entity,
             &mut commands,
-            &body_atlas_layout,
+            &snake_atlas_layout,
             // 3 need to make more textures,
-            4,
-            &char_texture,
+            1 + (3 * texture_index.0),
+            &snake_texture,
             &head_pos,
         );
         body_ref.push(tail_entity);
@@ -330,37 +326,34 @@ pub fn grow_snake(
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut grow_snake: EventReader<GrowSnakeEvent>,
     mut head_query: Query<(Entity, &mut BodyRef), (Without<SnakeBodyPart>, Without<Dead>)>,
-    mut tail: Query<(Entity, &Transform, &mut TextureAtlas), With<Tail>>,
+    mut tail_query: Query<(Entity, &Transform, &mut TextureAtlas), With<Tail>>,
 ) {
     //todo fix unwrap bug
     for ev in grow_snake.read() {
         let head_entity = ev.0;
         let (_, mut body_ref) = head_query.get_mut(head_entity).unwrap();
 
-        let full_texture = asset_server.load("textures/chars/char_atlas.png");
-        let body_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 5, 1, None, None);
-        let body_atlas_layout = texture_atlases.add(body_layout);
-
-        let tail_layout = TextureAtlasLayout::from_grid(UVec2::new(32, 16), 3, 3, None, None);
-        let tail_atlas_layout = texture_atlases.add(tail_layout);
+        let snake_texture = asset_server.load("textures/chars/sneks.png");
+        let snake_layout = TextureAtlasLayout::from_grid(UVec2::new(16, 16), 3, 5, None, None);
+        let snake_atlas_layout = texture_atlases.add(snake_layout);
 
         // todo unwrap unwrap unwrap
         let (old_tail, transform, mut old_atlas) =
-            tail.get_mut(*body_ref.0.last().unwrap()).unwrap();
+            tail_query.get_mut(*body_ref.0.last().unwrap()).unwrap();
         let new_tail = spawn_body_part(
             &head_entity,
             &mut commands,
-            &body_atlas_layout,
+            &snake_atlas_layout,
             // 3, TODO need to make more textures
-            4,
-            &full_texture,
+            old_atlas.index,
+            &snake_texture,
             transform,
         );
         commands.entity(old_tail).remove::<Tail>();
 
         // set old tail to body part
-        old_atlas.layout = body_atlas_layout.clone();
-        old_atlas.index = 4;
+        old_atlas.layout = snake_atlas_layout.clone();
+        // old_atlas.index = 4;
 
         commands.entity(new_tail).insert(Tail);
         // add new tail to body ref of head

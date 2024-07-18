@@ -3,6 +3,7 @@ use bevy::{ecs::schedule::Stepping, prelude::*, utils::HashMap};
 use crate::{
     game::prelude::{
         ControlScheme, Named, Player, PlayerBundle, Score, SnakeDirection, SnakeHeadRef,
+        SnakeTextureIndex,
     },
     GameState,
 };
@@ -54,6 +55,7 @@ pub fn init_char_selection(mut commands: Commands, asset_server: Res<AssetServer
         },
         snake_head_ref: SnakeHeadRef(None),
         score: Score { value: 0 },
+        texture_index: SnakeTextureIndex(0),
     });
     commands.spawn(PlayerBundle {
         player: Player {},
@@ -63,6 +65,7 @@ pub fn init_char_selection(mut commands: Commands, asset_server: Res<AssetServer
         },
         snake_head_ref: SnakeHeadRef(None),
         score: Score { value: 0 },
+        texture_index: SnakeTextureIndex(1),
     });
 
     commands

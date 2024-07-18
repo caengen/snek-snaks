@@ -30,6 +30,9 @@ impl ControlScheme {
 pub struct SnakeHeadRef(pub Option<Entity>);
 
 #[derive(Component)]
+pub struct SnakeTextureIndex(pub usize);
+
+#[derive(Component)]
 pub struct BodyRef(pub Vec<Entity>);
 
 #[derive(Component)]
@@ -50,4 +53,5 @@ pub struct PlayerBundle {
     pub control_scheme: ControlScheme,
     pub snake_head_ref: SnakeHeadRef,
     pub score: Score,
+    pub texture_index: SnakeTextureIndex,
 }
